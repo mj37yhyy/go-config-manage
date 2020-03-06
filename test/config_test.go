@@ -3,7 +3,6 @@ package test
 import (
 	"fmt"
 	"github.com/mj37yhyy/go-config-manage"
-	_ "github.com/spf13/viper/remote"
 	"testing"
 )
 
