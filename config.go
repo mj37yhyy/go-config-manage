@@ -23,11 +23,11 @@ type Application struct {
 }
 
 type Remote struct {
-	Enabled       bool   `mapstructure:"enabled"`
-	Provider      string `mapstructure:"provider"`
-	Endpoint      string `mapstructure:"endpoint"`
-	Path          string `mapstructure:"path"`
-	SecretKeyring string `mapstructure:"secret-keyring"`
+	Enabled       bool     `mapstructure:"enabled"`
+	Provider      string   `mapstructure:"provider"`
+	Endpoint      string   `mapstructure:"endpoint"`
+	Path          []string `mapstructure:"path"`
+	SecretKeyring string   `mapstructure:"secret-keyring"`
 }
 
 type Config struct {
@@ -47,29 +47,42 @@ func InitConfig(obj interface{}) error {
 	}
 	if root.Application.Config.Remote.Enabled {
 		if root.Application.Config.Remote.SecretKeyring != "" {
-			if err := NewRemoteConfig(
-				func(runtimeViper *viper.Viper) error {
-					return runtimeViper.AddSecureRemoteProvider(root.Application.Config.Remote.Provider,
-						root.Application.Config.Remote.Endpoint,
-						root.Application.Config.Remote.Path,
-						root.Application.Config.Remote.SecretKeyring,
-					)
-				},
-				&obj,
-			); err != nil {
-				return err
+			for _, path := range root.Application.Config.Remote.Path {
+				if err := NewRemoteConfig(
+					func(runtimeViper *viper.Viper) error {
+						if err := runtimeViper.AddSecureRemoteProvider(
+							root.Application.Config.Remote.Provider,
+							root.Application.Config.Remote.Endpoint,
+							path,
+							root.Application.Config.Remote.SecretKeyring,
+						); err != nil {
+							return err
+						}
+
+						return nil
+					},
+					&obj,
+				); err != nil {
+					return err
+				}
 			}
 		} else {
-			if err := NewRemoteConfig(
-				func(runtimeViper *viper.Viper) error {
-					return runtimeViper.AddRemoteProvider(root.Application.Config.Remote.Provider,
-						root.Application.Config.Remote.Endpoint,
-						root.Application.Config.Remote.Path,
-					)
-				},
-				&obj,
-			); err != nil {
-				return err
+			for _, path := range root.Application.Config.Remote.Path {
+				if err := NewRemoteConfig(
+					func(runtimeViper *viper.Viper) error {
+						if err := runtimeViper.AddRemoteProvider(
+							root.Application.Config.Remote.Provider,
+							root.Application.Config.Remote.Endpoint,
+							path,
+						); err != nil {
+							return err
+						}
+						return nil
+					},
+					&obj,
+				); err != nil {
+					return err
+				}
 			}
 		}
 	}
