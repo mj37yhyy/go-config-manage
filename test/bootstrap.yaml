@@ -1,0 +1,9 @@
+application:
+  config:
+    file: true
+    remote:
+      enabled: true
+      provider: consul
+      endpoint: localhost:8500
+      path: a/b/c
+      #secret-keyring: dfhoip
