@@ -31,8 +31,8 @@ type Remote struct {
 }
 
 type Config struct {
-	Remote Remote `mapstructure:"remote""`
-	File   bool   `mapstructure:"file""`
+	Remote Remote `mapstructure:"remote"`
+	File   bool   `mapstructure:"file"`
 }
 
 func InitConfig(obj interface{}) error {
