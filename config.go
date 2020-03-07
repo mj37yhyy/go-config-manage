@@ -1,7 +1,9 @@
 package go_config_manage
 
 import (
+	"flag"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	_ "github.com/spf13/viper/remote"
 	"os"
@@ -9,8 +11,22 @@ import (
 )
 
 const (
-	EnvConfigName string = "configName"
-	EnvConfigType string = "configType"
+	FlagBootstrapConfigPath string = "BootstrapConfigPath"
+	FlagBootstrapConfigName string = "BootstrapConfigName"
+	FlagBootstrapConfigType string = "BootstrapConfigType"
+
+	FlagApplicationConfigPath string = "ApplicationConfigPath"
+	FlagApplicationConfigName string = "ApplicationConfigName"
+	FlagApplicationConfigType string = "ApplicationConfigType"
+
+	EnvBootstrapConfigPath = FlagBootstrapConfigPath
+	EnvBootstrapConfigName = FlagBootstrapConfigName
+	EnvBootstrapConfigType = FlagBootstrapConfigType
+
+	EnvApplicationConfigPath = FlagApplicationConfigPath
+	EnvApplicationConfigName = FlagApplicationConfigName
+	EnvApplicationConfigType = FlagApplicationConfigType
+
 	bootstrapName string = "bootstrap"
 	configName    string = "application"
 	configType    string = "yaml"
@@ -38,23 +54,31 @@ type Remote struct {
 }
 
 func InitConfig(obj interface{}) error {
-	var root = Root{}
-	envConfigName, envConfigType := getEnv()
-	if envConfigName != "" && envConfigType != "" {
-		if err := NewConfig(&root, envConfigName, envConfigType); err != nil {
-			return err
-		}
-	} else {
-		if err := NewConfig(&root, bootstrapName, configType); err != nil {
+	root, applicationConfigPath, applicationConfigName, applicationConfigType, err := initBootstrap()
+	if err != nil {
+		return err
+	}
+
+	err = initApplication(root, applicationConfigPath, applicationConfigName, applicationConfigType, &obj)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func initApplication(root Root, applicationConfigPath string, applicationConfigName string, applicationConfigType string, obj interface{}) error {
+	if root.Application.Config.File {
+		if applicationConfigPath != "" && applicationConfigName != "" && applicationConfigType != "" {
+			// 如果传入的application位置存在
+			if err := NewConfig(&obj, applicationConfigPath, applicationConfigName, applicationConfigType); err != nil {
+				return err
+			}
+		} else if err := NewConfig(&obj, "", configName, configType); err != nil {
 			return err
 		}
 	}
 
-	if root.Application.Config.File {
-		if err := NewConfig(&obj, configName, configType); err != nil {
-			return err
-		}
-	}
+	// 从远程获取
 	for _, remote := range root.Application.Config.Remote {
 		if remote.Enabled {
 			for _, path := range remote.Path {
@@ -75,10 +99,80 @@ func InitConfig(obj interface{}) error {
 	return nil
 }
 
-func getEnv() (string, string) {
+func initBootstrap() (Root, string, string, string, error) {
+	var root = Root{}
+	var applicationConfigPath, applicationConfigName, applicationConfigType string
+	// 从命令行获取
+	flagBootstrapConfigPath, flagBootstrapConfigName, flagBootstrapConfigType,
+		flagApplicationConfigPath, flagApplicationConfigName, flagApplicationConfigType,
+		err := getFlag()
+	if err != nil {
+		return Root{}, "", "", "", err
+	}
+	if flagBootstrapConfigPath != "" && flagBootstrapConfigName != "" && flagBootstrapConfigType != "" {
+		//application文件位置
+		applicationConfigPath, applicationConfigName, applicationConfigType =
+			flagApplicationConfigPath, flagApplicationConfigName, flagApplicationConfigType
+		if err := NewConfig(&root, flagBootstrapConfigPath, flagBootstrapConfigName, flagBootstrapConfigType); err != nil {
+			return Root{}, "", "", "", err
+		}
+	} else {
+		// 从env获取
+		envBootstrapConfigPath, envBootstrapConfigName, envBootstrapConfigType,
+			envApplicationConfigPath, envApplicationConfigName, envApplicationConfigType := getEnv()
+		if envBootstrapConfigPath != "" && envBootstrapConfigName != "" && envBootstrapConfigType != "" {
+			//application文件位置
+			applicationConfigPath, applicationConfigName, applicationConfigType =
+				envApplicationConfigPath, envApplicationConfigName, envApplicationConfigType
+			if err := NewConfig(&root, envBootstrapConfigPath, envBootstrapConfigName, envBootstrapConfigType); err != nil {
+				return Root{}, "", "", "", err
+			}
+		} else {
+			// 从默认位置获取
+			if err := NewConfig(&root, "", bootstrapName, configType); err != nil {
+				return Root{}, "", "", "", err
+			}
+		}
+	}
+	return root, applicationConfigPath, applicationConfigName, applicationConfigType, nil
+}
+
+func getFlag() (string, string, string, string, string, string, error) {
+	pflag.String(FlagBootstrapConfigPath, "", "please input the bootstrap config file path")
+	pflag.String(FlagBootstrapConfigName, bootstrapName, "please input the bootstrap config file name")
+	pflag.String(FlagBootstrapConfigType, configType, "please input the bootstrap config file type")
+
+	pflag.String(FlagApplicationConfigPath, "", "please input the application config file path")
+	pflag.String(FlagApplicationConfigName, configName, "please input the application config file name")
+	pflag.String(FlagApplicationConfigType, configType, "please input the application config file type")
+
+	//获取标准包的flag
+	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
+	pflag.Parse()
+
+	//BindFlag
+
+	if err := viper.BindPFlags(pflag.CommandLine); err != nil {
+		return "", "", "", "", "", "", err
+	}
+	return viper.GetString(FlagBootstrapConfigPath),
+		viper.GetString(FlagBootstrapConfigName),
+		viper.GetString(FlagBootstrapConfigType),
+		viper.GetString(FlagApplicationConfigPath),
+		viper.GetString(FlagApplicationConfigName),
+		viper.GetString(FlagApplicationConfigType),
+		nil
+}
+
+func getEnv() (string, string, string, string, string, string) {
 	v := viper.New()
 	v.AutomaticEnv()
-	return v.GetString(EnvConfigName), v.GetString(EnvConfigType)
+	return v.GetString(EnvBootstrapConfigPath),
+		v.GetString(EnvBootstrapConfigName),
+		v.GetString(EnvBootstrapConfigType),
+		v.GetString(EnvApplicationConfigPath),
+		v.GetString(EnvApplicationConfigName),
+		v.GetString(EnvApplicationConfigType)
 }
 
 func AddRemoteProvider(remote Remote, path string, obj interface{}) error {
@@ -159,11 +253,14 @@ func NewRemoteConfig(addProvider func(runtimeViper *viper.Viper) error, obj inte
 	return nil
 }
 
-func NewConfig(obj interface{}, configName string, configType string) error {
-	//获取项目的执行路径
-	path, err := os.Getwd()
-	if err != nil {
-		return err
+func NewConfig(obj interface{}, path string, configName string, configType string) error {
+	if path == "" {
+		//获取项目的执行路径
+		_path, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		path = _path
 	}
 
 	runtimeViper := viper.New()
