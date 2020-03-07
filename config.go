@@ -9,6 +9,8 @@ import (
 )
 
 const (
+	EnvConfigName string = "configName"
+	EnvConfigType string = "configType"
 	bootstrapName string = "bootstrap"
 	configName    string = "application"
 	configType    string = "yaml"
@@ -37,9 +39,17 @@ type Remote struct {
 
 func InitConfig(obj interface{}) error {
 	var root = Root{}
-	if err := NewConfig(&root, bootstrapName, configType); err != nil {
-		return err
+	envConfigName, envConfigType := getEnv()
+	if envConfigName != "" && envConfigType != "" {
+		if err := NewConfig(&root, envConfigName, envConfigType); err != nil {
+			return err
+		}
+	} else {
+		if err := NewConfig(&root, bootstrapName, configType); err != nil {
+			return err
+		}
 	}
+
 	if root.Application.Config.File {
 		if err := NewConfig(&obj, configName, configType); err != nil {
 			return err
@@ -63,6 +73,12 @@ func InitConfig(obj interface{}) error {
 		}
 	}
 	return nil
+}
+
+func getEnv() (string, string) {
+	v := viper.New()
+	v.AutomaticEnv()
+	return v.GetString(EnvConfigName), v.GetString(EnvConfigType)
 }
 
 func AddRemoteProvider(remote Remote, path string, obj interface{}) error {
