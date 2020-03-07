@@ -2,10 +2,11 @@ application:
   config:
     file: true
     remote:
-      enabled: true
-      provider: consul
-      endpoint: localhost:8500
-      path:
-        - go-config
-        - a/b/c
-      #secret-keyring: dfhoip
+      - enabled: true
+        provider: consul
+        endpoint:
+          - localhost:8500
+        path:
+          - go-config
+          - a/b/c
+        #secret-keyring: dfhoip
