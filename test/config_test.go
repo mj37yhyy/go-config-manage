@@ -6,7 +6,9 @@ import (
 	"github.com/mj37yhyy/go-config-manage"
 	log "github.com/sirupsen/logrus"
 	_ "github.com/spf13/viper/remote"
+	"gopkg.in/yaml.v2"
 	"testing"
+	"time"
 )
 
 type TApplication struct {
@@ -28,14 +30,15 @@ func TestInitConfig(t *testing.T) {
 		panic(err)
 	}
 
-	fmt.Println("==========================", conf)
-	/*for i := 0; i < 5; i = 0 {
+	//fmt.Println("==========================", conf)
+	for {
 		fmt.Println("==========================", conf)
 		time.Sleep(time.Second * 2) // 每次请求后延迟
-	}*/
+	}
 }
 
 func Test2(t *testing.T) {
+	var conf = TRoot{}
 	var machines = []string{"localhost:8500"}
 	c, err := newConsulClient(machines)
 	if err != nil {
@@ -45,8 +48,14 @@ func Test2(t *testing.T) {
 	if err2 != nil {
 		panic(err2)
 	}
-	str := string(b)
-	log.Info(str)
+	if err := yaml.Unmarshal(b, &conf); err != nil {
+		panic(err)
+	}
+	b2, err := yaml.Marshal(conf)
+	if err != nil {
+		panic(err)
+	}
+	log.Info(string(b2))
 
 }
 func newConsulClient(machines []string) (*consulapi.KV, error) {

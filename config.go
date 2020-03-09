@@ -1,13 +1,14 @@
 package go_config_manage
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	consulapi "github.com/armon/consul-api"
+	"github.com/mitchellh/mapstructure"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	_ "github.com/spf13/viper/remote"
 	"gopkg.in/yaml.v2"
 	"os"
 	"time"
@@ -78,6 +79,19 @@ func InitConfig(obj interface{}) error {
 	return nil
 }
 
+type TApplication struct {
+	Name    string `mapstructure:"name"`
+	Version string `mapstructure:"version"`
+}
+
+type TSpring struct {
+	Application TApplication `mapstructure:"application"`
+}
+
+type TRoot struct {
+	Spring TSpring `mapstructure:"spring"`
+}
+
 // 初始化用户配置
 func initApplication(root Root,
 	applicationConfigPath string,
@@ -108,36 +122,52 @@ func initApplication(root Root,
 		}
 	}
 
-	// 从远程获取
+	// 从远端取
 	for _, remote := range root.Application.Config.Remote {
 		log.WithFields(log.Fields{
 			"remote": remote,
 		}).Trace("从远程获取")
 		if remote.Enabled {
-			kvClient, err := newConsulClient(remote.Path)
+			kvClient, err := newConsulClient(remote.Endpoint)
 			if err != nil {
 				log.WithField("err", err).Error("newConsulClient error")
 				return err
 			}
-			go func(kvClient *consulapi.KV, paths []string, token string) {
+			getKV(remote, kvClient, &obj)
+			go func() {
 				for {
-					for _, path := range paths {
-						b, err := get4ConsulKV(kvClient, path, token)
-						if err != nil {
-							log.Errorf("unable to read remote config: %v", err)
-							continue
-						}
-						if err := yaml.Unmarshal(b, &obj); err != nil {
-							log.Errorf("unmarshal config error: %v", err)
-							continue
-						}
-					}
+					getKV(remote, kvClient, &obj)
 					time.Sleep(time.Second * 5) // 每次请求后延迟
 				}
-			}(kvClient, remote.Path, remote.Token)
+			}()
 		}
 	}
 	return nil
+}
+
+func getKV(remote Remote, kvClient *consulapi.KV, obj interface{}) {
+	for _, path := range remote.Path {
+		b, err := get4ConsulKV(kvClient, path, remote.Token)
+		if err != nil {
+			log.Errorf("unable to read remote config: %v", err)
+			continue
+		}
+		in := bytes.NewReader(b)
+		buf := new(bytes.Buffer)
+		if _, err := buf.ReadFrom(in); err != nil {
+			log.Errorf("buf.ReadFrom error: %v", err)
+			continue
+		}
+		mapInstance := make(map[string]interface{})
+		if err := yaml.Unmarshal(buf.Bytes(), &mapInstance); err != nil {
+			log.Errorf("unmarshal config error: %v", err)
+			continue
+		}
+		if err := mapstructure.Decode(mapInstance, &obj); err != nil {
+			log.Errorf("Decode config error: %v", err)
+			continue
+		}
+	}
 }
 
 // 初始化引导文件
