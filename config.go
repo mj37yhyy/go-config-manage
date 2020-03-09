@@ -4,11 +4,11 @@ import (
 	"flag"
 	"fmt"
 	consulapi "github.com/armon/consul-api"
-	"github.com/ghodss/yaml"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	_ "github.com/spf13/viper/remote"
+	"gopkg.in/yaml.v2"
 	"os"
 	"time"
 )
