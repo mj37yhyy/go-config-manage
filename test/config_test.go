@@ -2,11 +2,11 @@ package test
 
 import (
 	"fmt"
-	consulapi "github.com/armon/consul-api"
 	"github.com/mj37yhyy/go-config-manage"
 	log "github.com/sirupsen/logrus"
 	_ "github.com/spf13/viper/remote"
 	"gopkg.in/yaml.v2"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -39,46 +39,36 @@ func TestInitConfig(t *testing.T) {
 
 func Test2(t *testing.T) {
 	var conf = TRoot{}
-	var machines = []string{"localhost:8500"}
-	c, err := newConsulClient(machines)
-	if err != nil {
-		panic(err)
-	}
-	b, err2 := get4ConsulKV(c, "a/b/c", "")
-	if err2 != nil {
-		panic(err2)
-	}
-	if err := yaml.Unmarshal(b, &conf); err != nil {
-		panic(err)
-	}
-	b2, err := yaml.Marshal(conf)
-	if err != nil {
-		panic(err)
-	}
-	log.Info(string(b2))
-
+	test4(&conf)
+	log.Info(conf)
 }
-func newConsulClient(machines []string) (*consulapi.KV, error) {
-	conf := consulapi.DefaultConfig()
-	if len(machines) > 0 {
-		conf.Address = machines[0]
-	}
-	client, err := consulapi.NewClient(conf)
-	if err != nil {
-		return nil, err
-	}
-	return client.KV(), nil
+func test4(out interface{}) {
+	test3(out)
 }
 
-func get4ConsulKV(kvClient *consulapi.KV, key string, token string) ([]byte, error) {
-	kv, _, err := kvClient.Get(key, &consulapi.QueryOptions{
-		Token: token,
-	})
-	if err != nil {
-		return nil, err
-	}
-	if kv == nil {
-		return nil, fmt.Errorf("Key ( %s ) was not found.", key)
-	}
-	return kv.Value, nil
+func test3(out interface{}) {
+	/*targetActual := reflect.ValueOf(out).Elem()
+	log.Info("targetActual",targetActual)
+	configType := targetActual.Type()
+	log.Info("configType",configType)
+	baseReflect := reflect.New(configType)
+	log.Info("baseReflect",baseReflect)
+	// Actual type.
+	base := baseReflect.Interface()
+	log.Info("base",base)
+	*/
+	b2 := reflect.New(reflect.ValueOf(out).Elem().Type()).Interface()
+
+	/*v := reflect.ValueOf(b2)
+	log.Info(v.Kind())
+	log.Info(v.Elem())*/
+	var str = `spring:
+  application:
+    name: myApp
+    version: v1.0.0`
+	yaml.Unmarshal([]byte(str), b2)
+
+	reflect.ValueOf(out).Elem().Set(reflect.ValueOf(b2).Elem())
+	//out = reflect.ValueOf(b2).Elem()
+	//log.Info(out)
 }

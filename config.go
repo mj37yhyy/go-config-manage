@@ -5,12 +5,12 @@ import (
 	"flag"
 	"fmt"
 	consulapi "github.com/armon/consul-api"
-	"github.com/mitchellh/mapstructure"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
 	"os"
+	"reflect"
 	"time"
 )
 
@@ -70,7 +70,7 @@ func InitConfig(obj interface{}) error {
 	}
 
 	// 初始化应用配置
-	err = initApplication(root, applicationConfigPath, applicationConfigName, applicationConfigType, &obj)
+	err = initApplication(root, applicationConfigPath, applicationConfigName, applicationConfigType, obj)
 	if err != nil {
 		log.WithField("err", err).Error("func initApplication error")
 		return err
@@ -109,13 +109,13 @@ func initApplication(root Root,
 		if applicationConfigPath != "" && applicationConfigName != "" && applicationConfigType != "" {
 			// 如果传入的application位置存在
 			log.Trace("传入的application位置存在")
-			if err := newConfig(&obj, applicationConfigPath, applicationConfigName, applicationConfigType); err != nil {
+			if err := newConfig(obj, applicationConfigPath, applicationConfigName, applicationConfigType); err != nil {
 				log.WithField("err", err).Error("func initApplication error")
 				return err
 			}
 		} else {
 			log.Trace("从默认位置读取")
-			if err := newConfig(&obj, "", configName, configType); err != nil {
+			if err := newConfig(obj, "", configName, configType); err != nil {
 				log.WithField("err", err).Error("func initApplication error")
 				return err
 			}
@@ -133,10 +133,10 @@ func initApplication(root Root,
 				log.WithField("err", err).Error("newConsulClient error")
 				return err
 			}
-			getKV(remote, kvClient, &obj)
+			getKV(remote, kvClient, obj)
 			go func() {
 				for {
-					getKV(remote, kvClient, &obj)
+					getKV(remote, kvClient, obj)
 					time.Sleep(time.Second * 5) // 每次请求后延迟
 				}
 			}()
@@ -145,7 +145,9 @@ func initApplication(root Root,
 	return nil
 }
 
+// 从远端获取
 func getKV(remote Remote, kvClient *consulapi.KV, obj interface{}) {
+	newObj := reflect.New(reflect.ValueOf(obj).Elem().Type()).Interface()
 	for _, path := range remote.Path {
 		b, err := get4ConsulKV(kvClient, path, remote.Token)
 		if err != nil {
@@ -158,16 +160,12 @@ func getKV(remote Remote, kvClient *consulapi.KV, obj interface{}) {
 			log.Errorf("buf.ReadFrom error: %v", err)
 			continue
 		}
-		mapInstance := make(map[string]interface{})
-		if err := yaml.Unmarshal(buf.Bytes(), &mapInstance); err != nil {
+		if err := yaml.Unmarshal(buf.Bytes(), newObj); err != nil {
 			log.Errorf("unmarshal config error: %v", err)
 			continue
 		}
-		if err := mapstructure.Decode(mapInstance, &obj); err != nil {
-			log.Errorf("Decode config error: %v", err)
-			continue
-		}
 	}
+	reflect.ValueOf(obj).Elem().Set(reflect.ValueOf(newObj).Elem())
 }
 
 // 初始化引导文件
@@ -285,111 +283,6 @@ func getEnv() (string, string, string, string, string, string) {
 		v.GetString(EnvApplicationConfigType)
 }
 
-// 添加多全远端地址
-/*func addRemoteProvider(remote Remote, path string, obj interface{}) error {
-	log.WithFields(log.Fields{
-		"remote": remote,
-		"path":   path,
-		"obj":    obj,
-	}).Trace("func AddRemoteProvider begin")
-	if err := newRemoteConfig(
-		func(runtimeViper *viper.Viper) error {
-			for _, endpoint := range remote.Endpoint {
-				if err := runtimeViper.AddRemoteProvider(
-					remote.Provider,
-					endpoint,
-					path,
-				); err != nil {
-					log.WithField("err", err).Error("func AddRemoteProvider error")
-					return err
-				}
-			}
-			return nil
-		},
-		&obj,
-	); err != nil {
-		log.WithField("err", err).Error("func AddRemoteProvider error")
-		return err
-	}
-	log.Trace("func AddRemoteProvider end")
-	return nil
-}
-
-// 读取带验证的远端文件
-func addSecureRemoteProvider(remote Remote, path string, obj interface{}) error {
-	log.WithFields(log.Fields{
-		"remote": remote,
-		"path":   path,
-		"obj":    obj,
-	}).Trace("func AddSecureRemoteProvider begin")
-	if err := newRemoteConfig(
-		func(runtimeViper *viper.Viper) error {
-			for _, endpoint := range remote.Endpoint {
-				if err := runtimeViper.AddSecureRemoteProvider(
-					remote.Provider,
-					endpoint,
-					path,
-					remote.SecretKeyring,
-				); err != nil {
-					log.WithField("err", err).Error("func AddSecureRemoteProvider error")
-					return err
-				}
-			}
-			return nil
-		},
-		&obj,
-	); err != nil {
-		log.WithField("err", err).Error("func AddSecureRemoteProvider error")
-		return err
-	}
-	log.Trace("func AddSecureRemoteProvider end")
-	return nil
-}
-
-// 读取远端文件
-func newRemoteConfig(addProvider func(runtimeViper *viper.Viper) error, obj interface{}) error {
-	log.WithFields(log.Fields{
-		"addProvider": addProvider,
-		"obj":         obj,
-	}).Trace("func NewRemoteConfig begin")
-	runtimeViper := viper.New()
-	if err := addProvider(runtimeViper); err != nil {
-		log.WithField("err", err).Error("func NewRemoteConfig error")
-		return err
-	}
-	runtimeViper.SetConfigType(configType)
-
-	// 第一次从远程配置中读取
-	if err := runtimeViper.ReadRemoteConfig(); err != nil {
-		log.WithField("err", err).Error("func NewRemoteConfig error")
-		return err
-	}
-	if err := runtimeViper.Unmarshal(&obj); err != nil {
-		log.WithField("err", err).Error("func NewRemoteConfig error")
-		return err
-	}
-
-	go func() {
-		for {
-			time.Sleep(time.Second * 5) // 每次请求后延迟
-			err := runtimeViper.WatchRemoteConfig()
-			if err != nil {
-				log.Errorf("unable to read remote config: %v", err)
-				continue
-			}
-
-			//将新配置解组到我们的运行时配置结构中。您还可以使用通道
-			//实现信号以通知系统更改
-			if err := runtimeViper.Unmarshal(&obj); err != nil {
-				log.Errorf("unmarshal config error: %v", err)
-				continue
-			}
-		}
-	}()
-	log.Trace("func NewRemoteConfig end")
-	return nil
-}*/
-
 // 读取本地文件
 func newConfig(obj interface{}, path string, configName string, configType string) error {
 	log.WithFields(log.Fields{
@@ -428,7 +321,7 @@ func newConfig(obj interface{}, path string, configName string, configType strin
 	}
 
 	log.Trace("Unmarshal")
-	if err := runtimeViper.Unmarshal(&obj); err != nil {
+	if err := runtimeViper.Unmarshal(obj); err != nil {
 		log.WithField("err", err).Error("func NewConfig error")
 		return err
 	}
