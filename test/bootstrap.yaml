@@ -10,3 +10,4 @@ application:
           - go-config
           - a/b/c
         #secret-keyring: dfhoip
+        token: sssss

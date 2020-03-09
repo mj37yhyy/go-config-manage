@@ -2,6 +2,9 @@ package go_config_manage
 
 import (
 	"flag"
+	"fmt"
+	consulapi "github.com/armon/consul-api"
+	"github.com/ghodss/yaml"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -51,6 +54,7 @@ type Remote struct {
 	Endpoint      []string `mapstructure:"endpoint"`
 	Path          []string `mapstructure:"path"`
 	SecretKeyring string   `mapstructure:"secret-keyring"`
+	Token         string   `mapstructure:"token"`
 }
 
 // 入口函数
@@ -110,23 +114,27 @@ func initApplication(root Root,
 			"remote": remote,
 		}).Trace("从远程获取")
 		if remote.Enabled {
-			for _, path := range remote.Path {
-				if remote.SecretKeyring != "" {
-					log.Trace("进入AddSecureRemoteProvider分支")
-					err := addSecureRemoteProvider(remote, path, obj)
-					if err != nil {
-						log.WithField("err", err).Error("func initApplication error")
-						return err
-					}
-				} else {
-					log.Trace("进入AddRemoteProvider分支")
-					err := addRemoteProvider(remote, path, obj)
-					if err != nil {
-						log.WithField("err", err).Error("func initApplication error")
-						return err
-					}
-				}
+			kvClient, err := newConsulClient(remote.Path)
+			if err != nil {
+				log.WithField("err", err).Error("newConsulClient error")
+				return err
 			}
+			go func(kvClient *consulapi.KV, paths []string, token string) {
+				for {
+					for _, path := range paths {
+						b, err := get4ConsulKV(kvClient, path, token)
+						if err != nil {
+							log.Errorf("unable to read remote config: %v", err)
+							continue
+						}
+						if err := yaml.Unmarshal(b, &obj); err != nil {
+							log.Errorf("unmarshal config error: %v", err)
+							continue
+						}
+					}
+					time.Sleep(time.Second * 5) // 每次请求后延迟
+				}
+			}(kvClient, remote.Path, remote.Token)
 		}
 	}
 	return nil
@@ -248,7 +256,7 @@ func getEnv() (string, string, string, string, string, string) {
 }
 
 // 添加多全远端地址
-func addRemoteProvider(remote Remote, path string, obj interface{}) error {
+/*func addRemoteProvider(remote Remote, path string, obj interface{}) error {
 	log.WithFields(log.Fields{
 		"remote": remote,
 		"path":   path,
@@ -350,7 +358,7 @@ func newRemoteConfig(addProvider func(runtimeViper *viper.Viper) error, obj inte
 	}()
 	log.Trace("func NewRemoteConfig end")
 	return nil
-}
+}*/
 
 // 读取本地文件
 func newConfig(obj interface{}, path string, configName string, configType string) error {
@@ -396,4 +404,29 @@ func newConfig(obj interface{}, path string, configName string, configType strin
 	}
 	log.WithField("obj", obj).Trace("func NewConfig end")
 	return nil
+}
+
+func newConsulClient(machines []string) (*consulapi.KV, error) {
+	conf := consulapi.DefaultConfig()
+	if len(machines) > 0 {
+		conf.Address = machines[0]
+	}
+	client, err := consulapi.NewClient(conf)
+	if err != nil {
+		return nil, err
+	}
+	return client.KV(), nil
+}
+
+func get4ConsulKV(kvClient *consulapi.KV, key string, token string) ([]byte, error) {
+	kv, _, err := kvClient.Get(key, &consulapi.QueryOptions{
+		Token: token,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if kv == nil {
+		return nil, fmt.Errorf("Key ( %s ) was not found.", key)
+	}
+	return kv.Value, nil
 }
