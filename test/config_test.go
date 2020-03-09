@@ -2,6 +2,7 @@ package test
 
 import (
 	"fmt"
+	consulapi "github.com/armon/consul-api"
 	"github.com/mj37yhyy/go-config-manage"
 	log "github.com/sirupsen/logrus"
 	_ "github.com/spf13/viper/remote"
@@ -35,14 +36,40 @@ func TestInitConfig(t *testing.T) {
 }
 
 func Test2(t *testing.T) {
-	var conf = TRoot{}
-	var applicationConfigPath = "applicationConfigPath"
-	var applicationConfigName = "applicationConfigPath"
-	var applicationConfigType = "applicationConfigPath"
-	log.WithFields(log.Fields{
-		"root":                  conf,
-		"applicationConfigPath": applicationConfigPath,
-		"applicationConfigName": applicationConfigName,
-		"applicationConfigType": applicationConfigType,
-	}).Info("func initBootstrap end")
+	var machines = []string{"localhost:8500"}
+	c, err := newConsulClient(machines)
+	if err != nil {
+		panic(err)
+	}
+	b, err2 := get4ConsulKV(c, "a/b/c", "")
+	if err2 != nil {
+		panic(err2)
+	}
+	str := string(b)
+	log.Info(str)
+
+}
+func newConsulClient(machines []string) (*consulapi.KV, error) {
+	conf := consulapi.DefaultConfig()
+	if len(machines) > 0 {
+		conf.Address = machines[0]
+	}
+	client, err := consulapi.NewClient(conf)
+	if err != nil {
+		return nil, err
+	}
+	return client.KV(), nil
+}
+
+func get4ConsulKV(kvClient *consulapi.KV, key string, token string) ([]byte, error) {
+	kv, _, err := kvClient.Get(key, &consulapi.QueryOptions{
+		Token: token,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if kv == nil {
+		return nil, fmt.Errorf("Key ( %s ) was not found.", key)
+	}
+	return kv.Value, nil
 }
