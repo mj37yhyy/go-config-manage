@@ -58,6 +58,12 @@ type Remote struct {
 	Endpoint []string `mapstructure:"endpoint"`
 	Path     []string `mapstructure:"path"`
 	Token    string   `mapstructure:"token"`
+	Refresh  Refresh  `mapstructure:"refresh"`
+}
+
+type Refresh struct {
+	Enabled  bool          `mapstructure:"enabled"`
+	Interval time.Duration `mapstructure:"interval"`
 }
 
 // 入口函数
@@ -136,12 +142,18 @@ func initApplication(root Root,
 				return err
 			}
 			getKV(remote, kvClient, obj)
-			go func() {
-				for {
-					getKV(remote, kvClient, obj)
-					time.Sleep(time.Second * 5) // 每次请求后延迟
-				}
-			}()
+			if remote.Refresh.Enabled {
+				go func() {
+					for {
+						getKV(remote, kvClient, obj)
+						var interval time.Duration = 5
+						if remote.Refresh.Interval > 0 {
+							interval = remote.Refresh.Interval
+						}
+						time.Sleep(time.Second * interval) // 每次请求后延迟
+					}
+				}()
+			}
 		}
 	}
 	return nil

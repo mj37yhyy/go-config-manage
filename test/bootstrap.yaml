@@ -11,3 +11,6 @@ application:
           - go-config
           - a/b/c
         token: sssss
+        refresh:
+          enabled: true
+          interval: 5
