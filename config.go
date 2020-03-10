@@ -2,6 +2,7 @@ package go_config_manage
 
 import (
 	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
 	consulapi "github.com/armon/consul-api"
@@ -11,6 +12,7 @@ import (
 	"gopkg.in/yaml.v2"
 	"os"
 	"reflect"
+	"strings"
 	"time"
 )
 
@@ -50,12 +52,12 @@ type Config struct {
 }
 
 type Remote struct {
-	Enabled       bool     `mapstructure:"enabled"`
-	Provider      string   `mapstructure:"provider"`
-	Endpoint      []string `mapstructure:"endpoint"`
-	Path          []string `mapstructure:"path"`
-	SecretKeyring string   `mapstructure:"secret-keyring"`
-	Token         string   `mapstructure:"token"`
+	Enabled  bool     `mapstructure:"enabled"`
+	Format   string   `mapstructure:"format"`
+	Provider string   `mapstructure:"provider"`
+	Endpoint []string `mapstructure:"endpoint"`
+	Path     []string `mapstructure:"path"`
+	Token    string   `mapstructure:"token"`
 }
 
 // 入口函数
@@ -160,9 +162,18 @@ func getKV(remote Remote, kvClient *consulapi.KV, obj interface{}) {
 			log.Errorf("buf.ReadFrom error: %v", err)
 			continue
 		}
-		if err := yaml.Unmarshal(buf.Bytes(), newObj); err != nil {
-			log.Errorf("unmarshal config error: %v", err)
-			continue
+		if remote.Format != "" {
+			if strings.EqualFold(remote.Format, "yaml") {
+				if err := yaml.Unmarshal(buf.Bytes(), newObj); err != nil {
+					log.Errorf("unmarshal yaml config error: %v", err)
+					continue
+				}
+			} else if strings.EqualFold(remote.Format, "json") {
+				if err := json.Unmarshal(buf.Bytes(), newObj); err != nil {
+					log.Errorf("unmarshal json config error: %v", err)
+					continue
+				}
+			}
 		}
 	}
 	reflect.ValueOf(obj).Elem().Set(reflect.ValueOf(newObj).Elem())

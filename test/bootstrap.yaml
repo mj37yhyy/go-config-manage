@@ -3,11 +3,11 @@ application:
     file: true
     remote:
       - enabled: true
+        format: yaml
         provider: consul
         endpoint:
           - localhost:8500
         path:
           - go-config
           - a/b/c
-        #secret-keyring: dfhoip
         token: sssss
