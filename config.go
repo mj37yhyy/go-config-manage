@@ -149,8 +149,14 @@ func initApplication(root Root,
 
 // 从远端获取
 func getKV(remote Remote, kvClient *consulapi.KV, obj interface{}) {
+	log.WithFields(log.Fields{
+		"remote":   remote,
+		"kvClient": kvClient,
+		"obj":      obj,
+	}).Trace("func getKV begin")
 	newObj := reflect.New(reflect.ValueOf(obj).Elem().Type()).Interface()
 	for _, path := range remote.Path {
+		log.Tracef("path = %s", path)
 		b, err := get4ConsulKV(kvClient, path, remote.Token)
 		if err != nil {
 			log.Errorf("unable to read remote config: %v", err)
@@ -175,6 +181,7 @@ func getKV(remote Remote, kvClient *consulapi.KV, obj interface{}) {
 				}
 			}
 		}
+		log.Trace(newObj)
 	}
 	reflect.ValueOf(obj).Elem().Set(reflect.ValueOf(newObj).Elem())
 }
