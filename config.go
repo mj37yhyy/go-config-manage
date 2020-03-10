@@ -181,8 +181,8 @@ func getKV(remote Remote, kvClient *consulapi.KV, obj interface{}) {
 				}
 			}
 		}
-		log.Trace(newObj)
 	}
+	log.WithField("obj", newObj).Trace("func getKV end")
 	reflect.ValueOf(obj).Elem().Set(reflect.ValueOf(newObj).Elem())
 }
 
