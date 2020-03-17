@@ -2,10 +2,10 @@ package go_config_manage
 
 import (
 	"bytes"
-	"encoding/json"
 	"flag"
 	"fmt"
 	consulapi "github.com/armon/consul-api"
+	"github.com/json-iterator/go"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -187,6 +187,7 @@ func getKV(remote Remote, kvClient *consulapi.KV, obj interface{}) {
 					continue
 				}
 			} else if strings.EqualFold(remote.Format, "json") {
+				var json = jsoniter.ConfigCompatibleWithStandardLibrary
 				if err := json.Unmarshal(buf.Bytes(), newObj); err != nil {
 					log.Errorf("unmarshal json config error: %v", err)
 					continue

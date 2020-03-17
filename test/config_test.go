@@ -1,7 +1,9 @@
 package test
 
 import (
+	"encoding/json"
 	"fmt"
+	"github.com/mitchellh/mapstructure"
 	"github.com/mj37yhyy/go-config-manage"
 	log "github.com/sirupsen/logrus"
 	_ "github.com/spf13/viper/remote"
@@ -39,8 +41,14 @@ func TestInitConfig(t *testing.T) {
 
 func Test2(t *testing.T) {
 	var conf = TRoot{}
-	test4(&conf)
 	log.Info(conf)
+	log.Info(&conf)
+	test5(&conf)
+	//log.Info(conf)
+}
+func test5(conf *TRoot) {
+	log.Info(conf)
+	log.Info(&conf)
 }
 func test4(out interface{}) {
 	test3(out)
@@ -71,4 +79,26 @@ func test3(out interface{}) {
 	reflect.ValueOf(out).Elem().Set(reflect.ValueOf(b2).Elem())
 	//out = reflect.ValueOf(b2).Elem()
 	//log.Info(out)
+}
+
+type ServerConfig struct {
+	Id      string `json:"Id"`
+	Address string `json:"Address"`
+	Version string `json:"Version"`
+}
+
+func TestQueryDistrbute(t *testing.T) {
+	var j = `[{"Id":"1","Address":"1","Version":"1"},{"Id":"2","Address":"2","Version":"2"}]`
+	var data interface{}
+	if err := json.Unmarshal([]byte(j), &data); err != nil {
+		panic(err)
+	}
+
+	var serverConfig []ServerConfig
+	if value, ok := data.([]interface{}); ok {
+		if err := mapstructure.Decode(value, &serverConfig); err != nil {
+			log.Errorf("err %v", err)
+		}
+	}
+	log.Info(serverConfig)
 }
