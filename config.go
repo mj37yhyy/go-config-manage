@@ -10,6 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"io/ioutil"
 	"os"
 	"reflect"
 	"strings"
@@ -117,13 +118,13 @@ func initApplication(root Root,
 		if applicationConfigPath != "" && applicationConfigName != "" && applicationConfigType != "" {
 			// 如果传入的application位置存在
 			log.Trace("传入的application位置存在")
-			if err := newConfig(obj, applicationConfigPath, applicationConfigName, applicationConfigType); err != nil {
+			if err := readLocalFile(obj, applicationConfigPath, applicationConfigName, applicationConfigType); err != nil {
 				log.WithField("err", err).Error("func initApplication error")
 				return err
 			}
 		} else {
 			log.Trace("从默认位置读取")
-			if err := newConfig(obj, "", configName, configType); err != nil {
+			if err := readLocalFile(obj, "", configName, configType); err != nil {
 				log.WithField("err", err).Error("func initApplication error")
 				return err
 			}
@@ -227,7 +228,7 @@ func initBootstrap() (Root, string, string, string, error) {
 		log.Trace("从用户定义的位置读取application文件")
 		applicationConfigPath, applicationConfigName, applicationConfigType =
 			flagApplicationConfigPath, flagApplicationConfigName, flagApplicationConfigType
-		if err := newConfig(&root, flagBootstrapConfigPath, flagBootstrapConfigName, flagBootstrapConfigType); err != nil {
+		if err := readLocalFile(&root, flagBootstrapConfigPath, flagBootstrapConfigName, flagBootstrapConfigType); err != nil {
 			log.WithField("err", err).Error("func initBootstrap error")
 			return Root{}, "", "", "", err
 		}
@@ -248,14 +249,14 @@ func initBootstrap() (Root, string, string, string, error) {
 			log.Trace("从用户定义的位置读取application文件")
 			applicationConfigPath, applicationConfigName, applicationConfigType =
 				envApplicationConfigPath, envApplicationConfigName, envApplicationConfigType
-			if err := newConfig(&root, envBootstrapConfigPath, envBootstrapConfigName, envBootstrapConfigType); err != nil {
+			if err := readLocalFile(&root, envBootstrapConfigPath, envBootstrapConfigName, envBootstrapConfigType); err != nil {
 				log.WithField("err", err).Error("func initBootstrap error")
 				return Root{}, "", "", "", err
 			}
 		} else {
 			// 从默认位置获取
 			log.Trace("从默认位置读取application文件")
-			if err := newConfig(&root, "", bootstrapName, configType); err != nil {
+			if err := readLocalFile(&root, "", bootstrapName, configType); err != nil {
 				log.WithField("err", err).Error("func initBootstrap error")
 				return Root{}, "", "", "", err
 			}
@@ -315,7 +316,7 @@ func getEnv() (string, string, string, string, string, string) {
 }
 
 // 读取本地文件
-func newConfig(obj interface{}, path string, configName string, configType string) error {
+func readLocalFile(obj interface{}, path string, configName string, configType string) error {
 	log.WithFields(log.Fields{
 		"path":       path,
 		"obj":        obj,
@@ -332,8 +333,28 @@ func newConfig(obj interface{}, path string, configName string, configType strin
 		}
 		path = _path
 	}
+	_file, err := ioutil.ReadFile(path + "/" + configName + "." + configType)
+	log.Trace("尝试进行配置读取")
+	if err != nil {
+		log.WithField("err", err).Error("read file error")
+		return err
+	}
 
-	runtimeViper := viper.New()
+	log.Trace("Unmarshal")
+	if configType == "yaml" || configType == "yml" {
+		if err := yaml.Unmarshal(_file, obj); err != nil {
+			log.WithField("err", err).Error("Unmarshal yaml error")
+			return err
+		}
+	} else if configType == "json" {
+		json := jsoniter.ConfigCompatibleWithStandardLibrary
+		if err := json.Unmarshal(_file, obj); err != nil {
+			log.WithField("err", err).Error("Unmarshal json error")
+			return err
+		}
+	}
+
+	/*runtimeViper := viper.New()
 
 	log.Trace("设置读取的文件路径")
 	runtimeViper.AddConfigPath(path) //设置读取的文件路径
@@ -355,7 +376,7 @@ func newConfig(obj interface{}, path string, configName string, configType strin
 	if err := runtimeViper.Unmarshal(obj); err != nil {
 		log.WithField("err", err).Error("func NewConfig error")
 		return err
-	}
+	}*/
 	log.WithField("obj", obj).Trace("func NewConfig end")
 	return nil
 }

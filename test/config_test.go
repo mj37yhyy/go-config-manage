@@ -3,11 +3,12 @@ package test
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/ghodss/yaml"
 	"github.com/mitchellh/mapstructure"
 	"github.com/mj37yhyy/go-config-manage"
 	log "github.com/sirupsen/logrus"
 	_ "github.com/spf13/viper/remote"
-	"gopkg.in/yaml.v2"
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -45,6 +46,48 @@ func Test2(t *testing.T) {
 	log.Info(&conf)
 	test5(&conf)
 	//log.Info(conf)
+}
+
+func TestB(t *testing.T) {
+
+	_path, err := os.Getwd()
+	fmt.Println(_path, err)
+}
+
+func TestA(t *testing.T) {
+	//var jsonStr = `{"A1":1,"B1":2,"C1":"aaa","D1":"ddfdf","E1":"asdfasdf"}`
+	var yamlStr = `A1: 1
+B1: 2
+C1: aaa
+D1: asdfsad
+E1: 1111`
+	type A struct {
+		A1 int `yaml:"A1"`
+		B1 int `yaml:"B1"`
+	}
+
+	type B struct {
+		C1 string `yaml:"C1"`
+		D1 string `yaml:"D1"`
+	}
+
+	type C struct {
+		A
+		B
+		E1 string `yaml:"E1"`
+	}
+
+	c := C{}
+
+	/*if err := json.Unmarshal([]byte(jsonStr), &c); err != nil {
+		panic(err)
+	}*/
+
+	if err := yaml.Unmarshal([]byte(yamlStr), &c); err != nil {
+		panic(err)
+	}
+	fmt.Println(c)
+	fmt.Println(c.A)
 }
 func test5(conf *TRoot) {
 	log.Info(conf)
