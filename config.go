@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/viper"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"time"
@@ -333,7 +334,8 @@ func readLocalFile(obj interface{}, path string, configName string, configType s
 		}
 		path = _path
 	}
-	_file, err := ioutil.ReadFile(path + "/" + configName + "." + configType)
+	configPath := filepath.Join(path, fmt.Sprintf("%s.%s", configName, configType))
+	_file, err := ioutil.ReadFile(configPath)
 	log.Trace("尝试进行配置读取")
 	if err != nil {
 		log.WithField("err", err).Error("read file error")
