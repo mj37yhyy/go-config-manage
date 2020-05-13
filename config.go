@@ -263,6 +263,14 @@ func initBootstrap() (Root, string, string, string, error) {
 			}
 		}
 	}
+
+	token := os.Getenv("CONSUL_ACL_TOKEN")
+	if token != "" {
+		for i, _ := range root.Application.Config.Remote {
+			root.Application.Config.Remote[i].Token = token
+		}
+	}
+
 	log.WithFields(log.Fields{
 		"root":                  root,
 		"applicationConfigPath": applicationConfigPath,
