@@ -270,7 +270,15 @@ func initBootstrap() (Root, string, string, string, error) {
 			root.Application.Config.Remote[i].Token = token
 		}
 	}
-
+	// 读取新的 CONSUL_PATHS 环境变量
+	if pathsEnv := os.Getenv("CONSUL_PATHS"); pathsEnv != "" {
+		// 按逗号切分为 []string
+		newPaths := strings.Split(pathsEnv, ",")
+		// 覆盖每个 Remote 的 Path 字段
+		for i := range root.Application.Config.Remote {
+			root.Application.Config.Remote[i].Path = newPaths
+		}
+	}
 	log.WithFields(log.Fields{
 		"root":                  root,
 		"applicationConfigPath": applicationConfigPath,
